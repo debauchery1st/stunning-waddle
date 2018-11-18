@@ -1,0 +1,59 @@
+ScreenManager:
+    Screen:
+        name: 'login'
+        BoxLayout:
+            orientation: 'vertical'
+            Label:
+                text: 'Server:'
+            TextInput:
+                id: server
+                text: '127.0.0.1'
+
+            Label:
+                text: 'Nickname:'
+            TextInput:
+                id: nickname
+                text: 'Thing 1'
+            Button:
+                text: 'Connect'
+                on_press: app.connect()
+    Screen:
+        name: 'lobby'
+        BoxLayout:
+            orientation: 'vertical'
+            id: chat_window
+            Button:
+                text: 'Disconnect'
+                size_hint_y: .1
+                on_press: app.disconnect()
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: .6
+                ScrollView:
+                    id: chat_view
+                    GridLayout:
+                        id: chat_logs
+                        cols: 1
+                        size_hint_y: None
+                        height: sum(x.height * 1.25 for x in self.children)
+                Label:
+                    id: active_users
+                    markup: 1
+                    halign: 'left'
+                    valign: 'top'
+                    size_hint: None, None
+                    text: app.chat_users
+            BoxLayout:
+                orientation: 'horizontal'
+                size_hint_y: None
+                TextInput:
+                    id: message
+                    on_focus: app.input_txt = self
+                    multiline: False
+                    size_hint_y: .5
+                    text:
+                        "type message here"
+                Button:
+                    text: 'send'
+                    on_press: app.send_msg()
+                    size_hint: (None, .5)
