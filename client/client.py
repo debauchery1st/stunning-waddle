@@ -2,7 +2,7 @@
 from kivy.app import App
 from kivy.support import install_twisted_reactor
 from kivy.properties import StringProperty
-from kivy.core.window import Window
+# from kivy.core.window import Window
 from kivy.uix.button import Button
 from kivy.lang import Builder
 from kivy.clock import Clock
@@ -36,7 +36,6 @@ Builder.load_string("""
 class ChatMessage(Button):
     message = StringProperty()
     plaintext = StringProperty()
-
 
 
 class ChatClient(protocol.Protocol):
@@ -86,8 +85,9 @@ class Client(App):
         self.chat_ip = kwargs.get('host_ip')
         self.chat_port = kwargs.get('host_port')
         self.nick = kwargs.get('client_nick')
-        self._keyboard = Window.request_keyboard((), self, 'text')
-        self._keyboard.bind(on_key_down=self.on_keyboard)
+        # resizing window crashes application.. why?
+        # self._keyboard = Window.request_keyboard((), self, 'text')
+        # self._keyboard.bind(on_key_down=self.on_keyboard)
         Clock.schedule_once(self.connect, 0)
 
     def on_keyboard(self, keyboard, keycode, text, modifiers):

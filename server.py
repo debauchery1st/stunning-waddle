@@ -1,5 +1,6 @@
 #!/bin/env Python3
 from twisted.internet import protocol, reactor, task
+from twisted.internet.protocol import connectionDone
 from twisted.python import log
 
 from queue import Queue
@@ -18,6 +19,23 @@ def parse_msg0(msg):
     _joining = _[4:].strip()
     _color = _color.split('=')[1]
     return _joining, _color
+
+
+def parse_msg1(msg, server, *args):
+    if ';' in msg:
+        cmd_chain = []
+        for request in msg.split(';'):
+            a, b = request.split(' ')
+            if a.upper() in server.bypass.keys():
+                cmd_chain.append(partial(server.bypass[a.upper()], args))
+                return 'PARTIAL', cmd_chain
+    try:
+        a, *b = msg.split(' ')
+        b = msg[len(a)+1:]
+    except Exception as e:
+        print(e)
+        return
+    return a, b
 
 
 class RelayChannel(object):
@@ -45,7 +63,9 @@ class RelayChannel(object):
                        'join': self.__add_user}[_job]
                 foo(*todo[1:])
             except KeyError as e:
-                print("FOO UNKNOWN")
+                print("FOO UNKNOWN.. send upstream?")
+                self.upstream.put(todo)
+                pass
             except Exception as e:
                 raise e
         # CHANNEL TRAFFIC
@@ -61,8 +81,7 @@ class RelayChannel(object):
 
     def __broadcast(self, name, transport, msg):
         if name not in self.users.keys():
-            _a = ['JOIN', ';', 'COLOR']
-            if [True for match in _a if match in msg]:
+            if [True for match in ['JOIN', ';', 'COLOR'] if match in msg]:
                 _joining, _color = parse_msg0(msg)
                 try:
                     assert _joining == self.name
@@ -77,6 +96,15 @@ class RelayChannel(object):
         if self.users[name]['transport'] != transport:
             transport.write(Base64RelayChat._error_msg('ERROR.001'))
             return
+        # Check for escape seq ... hash at less "#@<"
+        if msg.startswith("#@<"):
+            a, b = parse_msg1(msg[3:], self, )
+            try:
+                self.q.put((a, name, transport, b))
+            except Exception as e:
+                print(e)
+                return False
+            return True
         broadcast = Base64RelayChat.encode64(
             json.dumps(dict(name=name, msg=msg, space=self.name, color=self.users[name]['color'])))
         for u in [_ for _ in self.users if _ != name]:
@@ -147,6 +175,18 @@ class Base64RelayChat(protocol.Protocol):
         except Exception as e:
             print(e)
 
+    def connectionLost(self, reason=connectionDone):
+        _lost = []
+        for u in self.user_list.keys():
+            for chan in self.user_list[u]['channels']:
+                for _name in self.channel_list[chan].users:
+                    _tp = self.channel_list[chan].users[_name]['transport']
+                    if _tp.disconnected and _name not in _lost:
+                        _lost.append(_name)  # queue 1 time only
+                        print("{} lost connection".format(_name))
+                        self.q.put(('PART', _name, _tp, chan))
+        print('cleaned up {}'.format(_lost))
+
     def user_join(self, name, transport, chan, color=None):
         if chan.startswith('_'):
             # reserved for internal use
@@ -201,9 +241,6 @@ class Base64RelayChat(protocol.Protocol):
                 a, b = request.split(' ')
                 if a.upper() in self.bypass.keys():
                     cmd_chain.append(partial(self.bypass[a.upper()], (name, transport, b)))
-                    # ok = self.bypass[a.upper()](name, transport, b)
-                    # if not ok:
-                    #     return False
             self.q.put(('PARTIAL', name, transport, cmd_chain))
             return True
 
@@ -220,6 +257,7 @@ class Base64RelayChat(protocol.Protocol):
 
     def __partial(self, name, transport, cmds):
         for f in cmds:
+            print(f)
             f()
 
     def __enc_user_list(self, chan):
