@@ -1,3 +1,21 @@
+#:import Clipboard kivy.core.clipboard.Clipboard
+#:set bkg_color (.16862745098039217, .16862745098039217, .16862745098039217, 1)
+#:set foreground_clr (0.6784313725490196, 0.6784313725490196, 0.6784313725490196, 1)
+
+<ChatInput>
+
+<ChatMessage>:
+    markup: 1
+    background_color: bkg_color
+    foreground_color: foreground_clr
+    text_size: (self.width, None)
+    halign: 'left'
+    valign: 'top'
+    size_hint: 1, None
+    height: self.texture_size[1]
+    on_release: Clipboard.copy(self.plaintext)
+
+
 ScreenManager:
     Screen:
         name: 'login'
@@ -44,16 +62,16 @@ ScreenManager:
                     size_hint: None, None
                     text: app.chat_users
             BoxLayout:
+                id: local_input
                 orientation: 'horizontal'
                 size_hint_y: None
-                TextInput:
+                ChatInput:
                     id: message
-                    on_focus: app.input_txt = self
                     multiline: False
                     size_hint_y: .5
-                    text:
-                        "type message here"
+                    text: "type message here"
                 Button:
                     text: 'send'
                     on_press: app.send_msg()
+                    focus_next: message
                     size_hint: (None, .5)

@@ -1,10 +1,9 @@
 #!/bin/env Python
 from kivy.app import App
+from kivy.uix.textinput import TextInput
 from kivy.support import install_twisted_reactor
 from kivy.properties import StringProperty
-# from kivy.core.window import Window
 from kivy.uix.button import Button
-from kivy.lang import Builder
 from kivy.clock import Clock
 install_twisted_reactor()
 
@@ -15,27 +14,24 @@ import base64
 from random import choice
 
 colors = ['E4572E', '17BEBB', 'FFC914', '76B041', 'C6C4C4', 'C0392B', '8E44AD', '7F8C8D']
-Builder.load_string("""
-#:import Clipboard kivy.core.clipboard.Clipboard
-#:set bkg_color (.16862745098039217, .16862745098039217, .16862745098039217, 1)
-#:set foreground_clr (0.6784313725490196, 0.6784313725490196, 0.6784313725490196, 1)
-
-<ChatMessage>:
-    markup: 1
-    background_color: bkg_color
-    foreground_color: foreground_clr
-    text_size: (self.width, None)
-    halign: 'left'
-    valign: 'top'
-    size_hint: 1, None
-    height: self.texture_size[1]
-    on_release: Clipboard.copy(self.plaintext)
-""")
 
 
 class ChatMessage(Button):
     message = StringProperty()
     plaintext = StringProperty()
+
+
+class ChatInput(TextInput):
+
+    def on_parent(self, widget, parent):
+        self.focus = True
+
+    def on_text_validate(self):
+        # called after pressing [Enter]
+        app = App.get_running_app()
+        if app.root.current != 'login':
+            app.send_msg()
+        Clock.schedule_once(app.refocus_input, 0)
 
 
 class ChatClient(protocol.Protocol):
@@ -85,18 +81,11 @@ class Client(App):
         self.chat_ip = kwargs.get('host_ip')
         self.chat_port = kwargs.get('host_port')
         self.nick = kwargs.get('client_nick')
-        # resizing window crashes application.. why?
-        # self._keyboard = Window.request_keyboard((), self, 'text')
-        # self._keyboard.bind(on_key_down=self.on_keyboard)
         Clock.schedule_once(self.connect, 0)
 
-    def on_keyboard(self, keyboard, keycode, text, modifiers):
-        if keycode[0] == 13 and len(self.root.ids.message.text) > 0:
-            if self.root.current == "login":
-                return True
-            self.send_msg()
-            self.root.ids.message.focus = True
-        return True
+    def refocus_input(self, dt):
+        # called from ChatInput(TextInput)
+        self.root.ids.message.focus = True
 
     def connect(self, *args, **kwargs):
         host = self.root.ids.server.text

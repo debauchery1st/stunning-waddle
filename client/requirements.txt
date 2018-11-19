@@ -1,2 +1,2 @@
-Kivy
+Kivy==1.10.1
 Twisted==18.9.0
