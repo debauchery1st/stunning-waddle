@@ -8,11 +8,11 @@ if [ ! -d ${PWD}/venv ]; then
     source ./venv/bin/activate
     pip install --upgrade pip;pip install Cython;pip install -r requirements.txt
     echo "Running Server. [CTRL-C to exit]"
-    python server.py
+    python server.py $1
 else
     echo "Activating Virtual Environment."
     source ./venv/bin/activate
     echo "Running Server. [CTRL-C to exit]"
-    python server.py
+    python server.py $1
 fi
 

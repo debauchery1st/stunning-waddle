@@ -1,13 +1,23 @@
-#!/bin/env Python
+#!/bin/env Python3
 from twisted.internet import protocol, reactor, task
+from twisted.python import log
 
 from queue import Queue
+
 import json
-import base64
 import os
+import base64
+
+from functools import partial
 
 __version__ = "0.1"
-PORT = 64001
+
+
+def parse_msg0(msg):
+    _, _color = msg.split(';')
+    _joining = _[4:].strip()
+    _color = _color.split('=')[1]
+    return _joining, _color
 
 
 class RelayChannel(object):
@@ -50,12 +60,10 @@ class RelayChannel(object):
         return False
 
     def __broadcast(self, name, transport, msg):
-        _mu = msg.upper()
         if name not in self.users.keys():
-            if 'JOIN' in _mu:
-                _, _color = msg.split(';')
-                _joining = _[4:].strip()
-                _color = _color.split('=')[1]
+            _a = ['JOIN', ';', 'COLOR']
+            if [True for match in _a if match in msg]:
+                _joining, _color = parse_msg0(msg)
                 try:
                     assert _joining == self.name
                     self.__add_user(name, transport, color=_color)
@@ -66,7 +74,6 @@ class RelayChannel(object):
                     return True
             transport.write(Base64RelayChat._error_msg('JOIN CHANNEL before posting'))
             return
-        del _mu
         if self.users[name]['transport'] != transport:
             transport.write(Base64RelayChat._error_msg('ERROR.001'))
             return
@@ -89,25 +96,24 @@ class Base64RelayChat(protocol.Protocol):
         super(Base64RelayChat, self).__init__(*args, **kwargs)
         self.q = Queue()
         self.bypass = {'JOIN': lambda *x: self.user_join(*x),
+                       'SAY': lambda *x: self.user_say(*x),
+                       'CODE': lambda *x: self.user_code(*x),
                        'PART': lambda *x: self.user_part(*x),
+                       'PARTIAL': lambda *x: self.__partial(*x),
                        'QUIT': lambda *x: self.user_quit(*x),
                        'CONFIG': lambda *x: self.user_config(*x)}
         hyperspace = RelayChannel(name='_cmd_', creator='system', description="", upstream=self.q)
-        hyperspace.say = lambda *x: self.user_cmd(*x)
+        hyperspace.say = lambda *x: self.__user_cmd(*x)
         self.channel_list['_cmd_'] = hyperspace
         task.LoopingCall(self.__upstream, ()).start(.1)
-        print('connecting to {}'.format(self.pid))
+        # print('connecting to {}'.format(self.pid))
 
     def __upstream(self, *args, **kwargs):
         while not self.q.empty():
-            print('Q... ', end="")
             todo = self.q.get()
             _job = todo[0].upper()
-            print(_job)
             try:
-                {'JOIN': self.user_join,
-                 'QUIT': self.user_quit,
-                 'PART': self.user_part}[_job](*todo[1:])
+                self.bypass[_job](*todo[1:])
             except KeyError as e:
                 print("UNKNOWN foo")
             except Exception as e:
@@ -121,7 +127,7 @@ class Base64RelayChat(protocol.Protocol):
         # expects base64 encoded JSON
         try:
             _obj = json.loads(self.decode64(data))
-            _name = _obj['name']
+            _name = _obj['name'].strip()  # esc CR
             _msg = _obj['msg']
         except KeyError as e:
             print("missing name &/or msg")
@@ -142,7 +148,6 @@ class Base64RelayChat(protocol.Protocol):
             print(e)
 
     def user_join(self, name, transport, chan, color=None):
-        name = name.strip()  # no trailing \n
         if chan.startswith('_'):
             # reserved for internal use
             return False
@@ -161,7 +166,6 @@ class Base64RelayChat(protocol.Protocol):
         return True
 
     def user_part(self, name, transport, chan):
-        name = name.strip()  # no trailing \n
         print("{} parts {}".format(name, chan))
         if (name in self.channel_list[chan].users.keys()) and \
                 (self.channel_list[chan].users[name]['transport'] != transport):
@@ -170,14 +174,13 @@ class Base64RelayChat(protocol.Protocol):
         del self.channel_list[chan].users[name]  # remove user from channel
         del self.user_list[name]['channels'][self.user_list[name]['channels'].index(chan)]  # remove channel from user
         for user in self.channel_list[chan].users:
-            self.channel_list[chan].users[user]['transport'].write(self._enc_user_list(chan))  # update active users
+            self.channel_list[chan].users[user]['transport'].write(self.__enc_user_list(chan))  # update active users
         if len(self.user_list[name]['channels']) == 0:
             transport.loseConnection()
             del self.user_list[name]  # remove from list of active users
         return True
 
-    def user_quit(self, name, transport, chan):
-        name = name.strip()  # no trailing \n
+    def user_quit(self, name, transport):
         _out = '{} QUITS'.format(name)
         try:
             for c in self.user_list[name]['channels']:
@@ -185,36 +188,41 @@ class Base64RelayChat(protocol.Protocol):
         except KeyError as e:
             print(e)
 
-    def user_cmd(self, name, transport, msg, pm=None):
+    def __user_cmd(self, name, transport, msg):
         name = name.strip()  # no trailing \n
-        if msg.upper() == 'PONG':
-            for chan in self.user_list[name]:
-                chan.pong(name, )
-            return
+
         if msg.upper() == 'QUIT':
-            self.user_quit(name, transport, '')
-            return
+            self.user_quit(name, transport)
+            return True
+
         if ';' in msg:
+            cmd_chain = []
             for request in msg.split(';'):
                 a, b = request.split(' ')
                 if a.upper() in self.bypass.keys():
-                    ok = self.bypass[a.upper()](name, transport, b)
-                    if not ok:
-                        return False
-            return
+                    cmd_chain.append(partial(self.bypass[a.upper()], (name, transport, b)))
+                    # ok = self.bypass[a.upper()](name, transport, b)
+                    # if not ok:
+                    #     return False
+            self.q.put(('PARTIAL', name, transport, cmd_chain))
+            return True
+
         a, b = msg.split(' ')
-        available = [x for x in self.bypass.keys()]
+
+        available = [x for x in self.bypass.keys() if x != '_cmd']  # no recursion at this level
+
         if a.upper() in available:
             if a.upper() == 'PART':
                 self.user_part(name, transport, b)
                 return
-            try:
-                self.bypass[a.upper()](name, transport, b)
-            except Exception as e:
-                print(e)
+            self.bypass[a.upper()](name, transport, b)
         return True
 
-    def _enc_user_list(self, chan):
+    def __partial(self, name, transport, cmds):
+        for f in cmds:
+            f()
+
+    def __enc_user_list(self, chan):
         r = map(lambda _: (_, self.channel_list[chan].users[_]['color']), self.channel_list[chan].users.keys())
         return self.encode64(json.dumps({'name': '_chat_users', 'space': '_cmd_', 'msg': list(r)}))
 
@@ -237,10 +245,20 @@ class Base64RelayChatFactory(protocol.Factory):
 
 
 if __name__ == "__main__":
+    import argparse
+    import sys
+
+    log.startLogging(sys.stdout)
+    _factory = Base64RelayChatFactory()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("PORT")
+    args = parser.parse_args()
+    _port = int(args.PORT)
+
     print('[simple.object.relay.Protocol.{}]'.format(__version__))
-    print('[process ID : {}]\n[listening on port {}]\n'.format(os.getpid(), PORT))
+    print('[process ID : {}]\n[listening on port {}]\n'.format(os.getpid(), _port))
     try:
-        reactor.listenTCP(PORT, Base64RelayChatFactory())
+        reactor.listenTCP(_port, _factory)
         reactor.run()
         print('[exit]')
         exit(0)

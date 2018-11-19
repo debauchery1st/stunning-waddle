@@ -3,8 +3,9 @@ from kivy.app import App
 from kivy.support import install_twisted_reactor
 from kivy.properties import StringProperty
 from kivy.core.window import Window
-from kivy.uix.label import Label
+from kivy.uix.button import Button
 from kivy.lang import Builder
+from kivy.clock import Clock
 install_twisted_reactor()
 
 from twisted.internet import reactor, protocol
@@ -15,19 +16,27 @@ from random import choice
 
 colors = ['E4572E', '17BEBB', 'FFC914', '76B041', 'C6C4C4', 'C0392B', '8E44AD', '7F8C8D']
 Builder.load_string("""
+#:import Clipboard kivy.core.clipboard.Clipboard
+#:set bkg_color (.16862745098039217, .16862745098039217, .16862745098039217, 1)
+#:set foreground_clr (0.6784313725490196, 0.6784313725490196, 0.6784313725490196, 1)
+
 <ChatMessage>:
     markup: 1
+    background_color: bkg_color
+    foreground_color: foreground_clr
     text_size: (self.width, None)
     halign: 'left'
     valign: 'top'
     size_hint: 1, None
     height: self.texture_size[1]
+    on_release: Clipboard.copy(self.plaintext)
 """)
-PORT = 64001
 
 
-class ChatMessage(Label):
-    pass
+class ChatMessage(Button):
+    message = StringProperty()
+    plaintext = StringProperty()
+
 
 
 class ChatClient(protocol.Protocol):
@@ -66,14 +75,20 @@ class ChatClientFactory(protocol.ClientFactory):
 class Client(App):
     nick = StringProperty()
     chat_users = StringProperty()
+    chat_ip = StringProperty()
+    chat_port = int
     pks = None
     transport = None
     color = None
 
     def __init__(self, **kwargs):
-        super(Client, self).__init__(**kwargs)
+        super(Client, self).__init__()
+        self.chat_ip = kwargs.get('host_ip')
+        self.chat_port = kwargs.get('host_port')
+        self.nick = kwargs.get('client_nick')
         self._keyboard = Window.request_keyboard((), self, 'text')
         self._keyboard.bind(on_key_down=self.on_keyboard)
+        Clock.schedule_once(self.connect, 0)
 
     def on_keyboard(self, keyboard, keycode, text, modifiers):
         if keycode[0] == 13 and len(self.root.ids.message.text) > 0:
@@ -83,10 +98,10 @@ class Client(App):
             self.root.ids.message.focus = True
         return True
 
-    def connect(self):
+    def connect(self, *args, **kwargs):
         host = self.root.ids.server.text
-        self.nick = self.root.ids.nickname.text
-        reactor.connectTCP(host, PORT, ChatClientFactory(self))
+        self.nick = self.root.ids.nickname.text  # only redundant on 1st run
+        reactor.connectTCP(host, self.chat_port, ChatClientFactory(self))
 
     def disconnect(self, *args):
         print('disconnected')
@@ -122,7 +137,9 @@ class Client(App):
                                         'space': self.root.current,
                                         'msg': '{}'.format(msg)}))
         self.transport.write(out)
-        chat_msg = ChatMessage(text='[b][{}][/b] : {}\n'.format(self.nick, msg))
+        chat_msg = ChatMessage(text='[b][{}][/b] : {}\n'.format(self.nick, msg),
+                               plaintext="{}: {}".format(self.nick, msg),
+                               message=msg)
         self.root.ids.chat_logs.add_widget(chat_msg)
         self.root.ids.message.text = ''
         self.root.ids.chat_view.scroll_to(chat_msg)
@@ -182,4 +199,11 @@ class Client(App):
 
 
 if __name__ == "__main__":
-    Client().run()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("IP", default="127.0.0.1")
+    parser.add_argument("PORT", type=int, default=8123)
+    parser.add_argument("USERNAME", type=str, default="user")
+    args = parser.parse_args()
+    _ip, _port, _name = args.IP, args.PORT, args.USERNAME
+    Client(host_ip=_ip, host_port=_port, client_nick=_name).run()

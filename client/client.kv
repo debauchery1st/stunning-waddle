@@ -7,13 +7,13 @@ ScreenManager:
                 text: 'Server:'
             TextInput:
                 id: server
-                text: '127.0.0.1'
+                text: app.chat_ip
 
             Label:
                 text: 'Nickname:'
             TextInput:
                 id: nickname
-                text: 'Thing 1'
+                text: app.nick
             Button:
                 text: 'Connect'
                 on_press: app.connect()

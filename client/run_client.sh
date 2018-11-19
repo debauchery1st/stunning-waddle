@@ -13,4 +13,4 @@ else
 fi
 
 echo "Running Server. [CTRL-C to exit]"
-python client.py
+python client.py $1 $2 $3
