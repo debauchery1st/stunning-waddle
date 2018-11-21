@@ -11,9 +11,20 @@ from twisted.internet import reactor, protocol
 
 import json
 import base64
+
 from random import choice
 
 colors = ['E4572E', '17BEBB', 'FFC914', '76B041', 'C6C4C4', 'C0392B', '8E44AD', '7F8C8D']
+GREETINGS = 'TWFuIGlzIGRpc3Rpbmd1aXNoZWQsIG5vdCBvbmx5IGJ5IGhpcyBy' \
+            'ZWFzb24sIGJ1dCBieSB0aGlzIHNpbmd1bGFyIHBhc3Npb24gZnJv' \
+            'bSBvdGhlciBhbmltYWxzLCB3aGljaCBpcyBhIGx1c3Qgb2YgdGh' \
+            'lIG1pbmQsIHRoYXQgYnkgYSBwZXJzZXZlcmFuY2Ugb2YgZGVsaW' \
+            'dodCBpbiB0aGUgY29udGludWVkIGFuZCBpbmRlZmF0aWdhYmxlI' \
+            'GdlbmVyYXRpb24gb2Yga25vd2xlZGdlLCBleGNlZWRzIHRoZSBz' \
+            'aG9ydCB2ZWhlbWVuY2Ugb2YgYW55IGNhcm5hbCBwbGVhc3VyZS4='
+
+
+__version__ = "0.1.0"
 
 
 class ChatMessage(Button):
@@ -31,7 +42,7 @@ class ChatInput(TextInput):
         app = App.get_running_app()
         if app.root.current != 'login':
             app.send_msg()
-        Clock.schedule_once(app.refocus_input, 0)
+        Clock.schedule_once(app.refocus_input, 0)  # refocus on the text box
 
 
 class ChatClient(protocol.Protocol):
@@ -45,7 +56,7 @@ class ChatClient(protocol.Protocol):
 
     def dataReceived(self, data):
         txt = data.decode()
-        if txt.startswith('SUP'):
+        if txt == GREETINGS:
             print('[HANDSHAKE]')
             self.factory.app.on_login()
             return
@@ -59,11 +70,9 @@ class ChatClientFactory(protocol.ClientFactory):
         self.app = app
 
     def clientConnectionFailed(self, connector, reason):
-        super(ChatClientFactory, self).clientConnectionFailed(connector, reason)
         print("CONNECTION FAILURE : {}:".format(reason))
 
     def clientConnectionLost(self, connector, reason):
-        super(ChatClientFactory, self).clientConnectionLost(connector, reason)
         print(reason.value)
 
 
@@ -114,11 +123,10 @@ class Client(App):
         self.root.current = 'lobby'
 
     def on_login(self, *args):
-        out1 = json.dumps({'name': self.nick,
-                           'space': '_cmd_',
-                           'msg': 'JOIN {};CONFIG COLOR={}'.format(
-                               self.root.current, self.color)})
-        self.transport.write(self.encode64(out1))
+        out = json.dumps({'name': self.nick,
+                          'space': '_cmd_',
+                          'msg': 'JOIN {};CONFIG COLOR={}'.format(self.root.current, self.color)})
+        self.transport.write(self.encode64(out))
 
     def send_msg(self):
         msg = self.root.ids.message.text
@@ -188,11 +196,4 @@ class Client(App):
 
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("IP", default="127.0.0.1")
-    parser.add_argument("PORT", type=int, default=8123)
-    parser.add_argument("USERNAME", type=str, default="user")
-    args = parser.parse_args()
-    _ip, _port, _name = args.IP, args.PORT, args.USERNAME
-    Client(host_ip=_ip, host_port=_port, client_nick=_name).run()
+    Client(host_ip='10.10.10.104', host_port=64001, client_nick='Desktop').run()

@@ -88,17 +88,19 @@ class RelayChannel(object):
                     self.__add_user(name, transport, color=_color)
                     return True
                 except AssertionError:
-                    print('Q upstream')
+                    print('*upstream Q')
                     self.upstream.put(('join', name, transport, _joining, _color))
                     return True
-            transport.write(Base64RelayChat._error_msg('JOIN CHANNEL before posting'))
+            _bits = Base64RelayChat._error_msg('JOIN CHANNEL before posting')
+            transport.write(_bits, [], 200, "SUP")
             return
         if self.users[name]['transport'] != transport:
-            transport.write(Base64RelayChat._error_msg('ERROR.001'))
+            _bits = Base64RelayChat._error_msg('ERROR.001')
+            transport.write(_bits, [], 200, "SUP")
             return
         # Check for escape seq ... hash at less "#@<"
         if msg.startswith("#@<"):
-            a, b = parse_msg1(msg[3:], self, )
+            a, b = parse_msg1(msg[3:], self)
             try:
                 self.q.put((a, name, transport, b))
             except Exception as e:
@@ -116,13 +118,16 @@ class RelayChannel(object):
 
 
 class Base64RelayChat(protocol.Protocol):
-    channel_list = dict(lobby=RelayChannel(name="lobby", creator="system", description="welcome"))
+    channel_list = dict(
+        lobby=RelayChannel(name="lobby", creator="system", description="Welcome")
+    )  # must declare channels here or clients are blind to each other
     user_list = dict()
     pid = os.getpid()
 
     def __init__(self, *args, **kwargs):
         super(Base64RelayChat, self).__init__(*args, **kwargs)
         self.q = Queue()
+        self.channel_list['lobby'].upstream = self.q
         self.bypass = {'JOIN': lambda *x: self.user_join(*x),
                        'SAY': lambda *x: self.user_say(*x),
                        'CODE': lambda *x: self.user_code(*x),
@@ -130,11 +135,18 @@ class Base64RelayChat(protocol.Protocol):
                        'PARTIAL': lambda *x: self.__partial(*x),
                        'QUIT': lambda *x: self.user_quit(*x),
                        'CONFIG': lambda *x: self.user_config(*x)}
-        hyperspace = RelayChannel(name='_cmd_', creator='system', description="", upstream=self.q)
+        hyperspace = RelayChannel(name='_cmd_', creator='system',
+                                  description="", upstream=self.q)
         hyperspace.say = lambda *x: self.__user_cmd(*x)
+        self.greetings = 'TWFuIGlzIGRpc3Rpbmd1aXNoZWQsIG5vdCBvbmx5IGJ5IGhpcyBy' \
+                         'ZWFzb24sIGJ1dCBieSB0aGlzIHNpbmd1bGFyIHBhc3Npb24gZnJv' \
+                         'bSBvdGhlciBhbmltYWxzLCB3aGljaCBpcyBhIGx1c3Qgb2YgdGh' \
+                         'lIG1pbmQsIHRoYXQgYnkgYSBwZXJzZXZlcmFuY2Ugb2YgZGVsaW' \
+                         'dodCBpbiB0aGUgY29udGludWVkIGFuZCBpbmRlZmF0aWdhYmxlI' \
+                         'GdlbmVyYXRpb24gb2Yga25vd2xlZGdlLCBleGNlZWRzIHRoZSBz' \
+                         'aG9ydCB2ZWhlbWVuY2Ugb2YgYW55IGNhcm5hbCBwbGVhc3VyZS4='
         self.channel_list['_cmd_'] = hyperspace
         task.LoopingCall(self.__upstream, ()).start(.1)
-        # print('connecting to {}'.format(self.pid))
 
     def __upstream(self, *args, **kwargs):
         while not self.q.empty():
@@ -149,30 +161,33 @@ class Base64RelayChat(protocol.Protocol):
 
     def makeConnection(self, transport):
         super(Base64RelayChat, self).makeConnection(transport)
-        self.transport.write('SUP\n'.encode('utf-8'))
+        _ = base64.test()
+        self.transport.write(self.greetings.encode())
 
     def dataReceived(self, data):
         # expects base64 encoded JSON
         try:
             _obj = json.loads(self.decode64(data))
-            _name = _obj['name'].strip()  # esc CR
+            _name = _obj['name'].strip()
             _msg = _obj['msg']
         except KeyError as e:
             print("missing name &/or msg")
             return
         except Exception as e:
+            print("EXCEPTION")
             print(e)  # cannot decode?
             return
         try:
             _space = _obj['space']
         except KeyError as e:
             _space = 'lobby'
-        if _space == '_cmd_' and _msg.upper().startswith('PART'):
+        if _space.lower() == '_cmd_' and _msg.upper().startswith('PART'):
             self.q.put(('PART', _name, self.transport, _msg[4:].strip()))
             return
         try:
             self.channel_list[_space].q.put(('say', _name, self.transport, _msg))
         except Exception as e:
+            print("EXCEPTION")
             print(e)
 
     def connectionLost(self, reason=connectionDone):
@@ -187,9 +202,31 @@ class Base64RelayChat(protocol.Protocol):
                         self.q.put(('PART', _name, _tp, chan))
         print('cleaned up {}'.format(_lost))
 
+    def user_code(self, name, transport, B64text):
+        print("USER [{}] ENTERED CODE".format(name))
+        try:
+            ufo = json.loads(self.decode64(B64text))
+            print("{} sent {}".format(name, type(ufo)))
+            space = ufo['space']
+            msg = ufo['msg']
+            if '_cmd_' in space.lower():
+                self.__user_cmd(name, transport, msg)
+                return True
+            if space in self.bypass.keys():
+                self.bypass[space](name, transport, msg)
+                return True
+            print("??? ", ufo)
+        except Exception as e:
+            print("EXCEPTION")
+            print(e)
+        return False
+
     def user_join(self, name, transport, chan, color=None):
         if chan.startswith('_'):
             # reserved for internal use
+            err = "One Does Not Simply Walk into {}".format(chan)
+            transport.write(self._error_msg(err))
+            print(err)
             return False
 
         if chan not in self.channel_list.keys():
@@ -197,7 +234,7 @@ class Base64RelayChat(protocol.Protocol):
             return False
 
         if (name in self.channel_list[chan].users.keys()) or (name in self.user_list):
-            transport.write(self._error_msg('_ERROR.001'))  # name is taken
+            transport.write(self._error_msg('_ERROR.001'))   # name is taken
             return False
 
         print("{} JOINS {}".format(name, chan))
@@ -229,8 +266,7 @@ class Base64RelayChat(protocol.Protocol):
             print(e)
 
     def __user_cmd(self, name, transport, msg):
-        name = name.strip()  # no trailing \n
-
+        name = name.strip()
         if msg.upper() == 'QUIT':
             self.user_quit(name, transport)
             return True

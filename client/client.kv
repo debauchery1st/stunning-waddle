@@ -42,8 +42,22 @@ ScreenManager:
             id: chat_window
             Button:
                 text: 'Disconnect'
-                size_hint_y: .1
+                size_hint_y: .05
                 on_press: app.disconnect()
+            BoxLayout:
+                id: local_input
+                orientation: 'horizontal'
+                size_hint_y: .1
+                ChatInput:
+                    id: message
+                    multiline: False
+                    size_hint_y: .5
+                    text: "type message here"
+                Button:
+                    text: 'send'
+                    on_press: app.send_msg()
+                    focus_next: message
+                    size_hint: (None, .5)
             BoxLayout:
                 orientation: 'horizontal'
                 size_hint_y: .6
@@ -61,17 +75,3 @@ ScreenManager:
                     valign: 'top'
                     size_hint: None, None
                     text: app.chat_users
-            BoxLayout:
-                id: local_input
-                orientation: 'horizontal'
-                size_hint_y: None
-                ChatInput:
-                    id: message
-                    multiline: False
-                    size_hint_y: .5
-                    text: "type message here"
-                Button:
-                    text: 'send'
-                    on_press: app.send_msg()
-                    focus_next: message
-                    size_hint: (None, .5)
