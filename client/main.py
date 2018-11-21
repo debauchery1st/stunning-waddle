@@ -196,4 +196,4 @@ class Client(App):
 
 
 if __name__ == "__main__":
-    Client(host_ip='10.10.10.104', host_port=64001, client_nick='Desktop').run()
+    Client(host_ip='10.10.10.104', host_port=64001, client_nick='Android').run()

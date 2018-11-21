@@ -1,7 +1,7 @@
 [app]
 
-title = tenChat
-package.name = tenChat
+title = sWchat
+package.name = sWchat
 package.domain = org.test
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
@@ -50,4 +50,4 @@ warn_on_root = 1
 
 # (str) Path to build artifact storage, absolute or relative to spec file
 # build_dir = ./.buildozer
-build_dir = /build/testapp
+build_dir = ../build/sWChat
