@@ -173,11 +173,12 @@ class Client(App):
             return
         _color = decoded['color'].strip()
         _name = decoded['name'].strip()
+        _plaintext = '{}: {}'.format(_name, decoded['msg'])
         if 'color' in decoded.keys():
             _ = '[b][color={}]{}:[/color][/b] {}'.format(_color, _name, decoded['msg'])
         else:
-            _ = '{}: {}'.format(_name, decoded['msg'])
-        chat_msg = ChatMessage(text='{}\n'.format(_))
+            _ = _plaintext
+        chat_msg = ChatMessage(text='{}\n'.format(_), plaintext=_plaintext, msg=decoded['msg'])
         self.root.ids.chat_logs.add_widget(chat_msg)
         self.root.ids.message.text = ''
         self.root.ids.chat_view.scroll_to(chat_msg)  # auto-scroll
