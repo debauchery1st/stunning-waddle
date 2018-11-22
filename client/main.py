@@ -77,7 +77,7 @@ class ChatClientFactory(protocol.ClientFactory):
 
 
 class Client(App):
-    icon = StringProperty('icon.png')
+    icon = StringProperty('data/icon.png')
     nick = StringProperty()
     chat_users = StringProperty()
     chat_ip = StringProperty()
