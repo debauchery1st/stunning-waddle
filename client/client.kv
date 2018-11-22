@@ -15,35 +15,86 @@
     height: self.texture_size[1]
     on_release: Clipboard.copy(self.plaintext)
 
+<MyServerIP@GridLayout>:
+    cols: 2
+    size_hint_y: None
+    kv_text: server.text
+    Label:
+        id: lbl_server
+        text: 'Server:'
+        size_hint: None, None
+    TextInput:
+        id: server
+        text: app.chat_ip
+        multiline: False
+        size_hint_y: None
+
+<MyServerPort@GridLayout>:
+    cols: 2
+    size_hint_y: None
+    kv_text: port.text
+    Label:
+        id: lbl_port
+        text: 'Port:'
+        size_hint: None, None
+    TextInput:
+        id: port
+        text: '64007'
+        multiline: False
+        size_hint_y: None
+
+<MyNickName@GridLayout>:
+    cols: 2
+    size_hint_y: None
+    kv_text: nickname.text
+    Label:
+        text: 'Nickname:'
+        size_hint: None, None
+    TextInput:
+        id: nickname
+        text: app.nick
+        multiline: False
+        height: self.height
+        size_hint_y: None
 
 ScreenManager:
+    canvas.before:
+        Rectangle:
+            pos: self.pos
+            size: self.size
+            source: "data/bkg.png"
     Screen:
         name: 'login'
         BoxLayout:
             orientation: 'vertical'
-            Label:
-                text: 'Server:'
-            TextInput:
-                id: server
-                text: app.chat_ip
-
-            Label:
-                text: 'Nickname:'
-            TextInput:
-                id: nickname
-                text: app.nick
+            spacing: 10
+            padding: 10
+            MyServerIP:
+                id: server_ip
+            MyServerPort:
+                id: server_port
+            MyNickName:
+                id: nick_name
+            Image:
+                source: 'data/icon.png'
             Button:
                 text: 'Connect'
                 on_press: app.connect()
     Screen:
         name: 'lobby'
         BoxLayout:
+            spacing: 10
+            padding: 10
             orientation: 'vertical'
             id: chat_window
             Button:
                 text: 'Disconnect'
-                size_hint_y: .05
+                size_hint_y: .1
                 on_press: app.disconnect()
+            Label:
+                markup: 1
+                text: '[b]lanChat[/b]'
+                size_hint_y: .1
             BoxLayout:
                 id: local_input
                 orientation: 'horizontal'
@@ -51,16 +102,17 @@ ScreenManager:
                 ChatInput:
                     id: message
                     multiline: False
-                    size_hint_y: .5
                     text: "type message here"
                 Button:
                     text: 'send'
                     on_press: app.send_msg()
                     focus_next: message
-                    size_hint: (None, .5)
+                    size_hint_x: .5
             BoxLayout:
                 orientation: 'horizontal'
-                size_hint_y: .6
+                size_hint_y: 1
+                spacing: 10
+                padding: 10
                 ScrollView:
                     id: chat_view
                     GridLayout:
@@ -72,6 +124,5 @@ ScreenManager:
                     id: active_users
                     markup: 1
                     halign: 'left'
-                    valign: 'top'
                     size_hint: None, None
                     text: app.chat_users

@@ -1,4 +1,4 @@
-#!/bin/env Python
+#!/bin/env python
 from kivy.app import App
 from kivy.uix.textinput import TextInput
 from kivy.support import install_twisted_reactor
@@ -77,10 +77,10 @@ class ChatClientFactory(protocol.ClientFactory):
 
 
 class Client(App):
+    icon = StringProperty('icon.png')
     nick = StringProperty()
     chat_users = StringProperty()
     chat_ip = StringProperty()
-    chat_port = int
     pks = None
     transport = None
     color = None
@@ -88,7 +88,6 @@ class Client(App):
     def __init__(self, **kwargs):
         super(Client, self).__init__()
         self.chat_ip = kwargs.get('host_ip')
-        self.chat_port = kwargs.get('host_port')
         self.nick = kwargs.get('client_nick')
         Clock.schedule_once(self.connect, 0)
 
@@ -97,9 +96,14 @@ class Client(App):
         self.root.ids.message.focus = True
 
     def connect(self, *args, **kwargs):
-        host = self.root.ids.server.text
-        self.nick = self.root.ids.nickname.text  # only redundant on 1st run
-        reactor.connectTCP(host, self.chat_port, ChatClientFactory(self))
+        host = self.root.ids.server_ip.kv_text
+        chat_port = self.root.ids.server_port.kv_text
+        self.nick = self.root.ids.nick_name.kv_text  # only redundant on 1st run
+        try:
+            port = int(chat_port)
+        except:
+            return
+        reactor.connectTCP(host, int(chat_port), ChatClientFactory(self))
 
     def disconnect(self, *args):
         print('disconnected')
@@ -173,7 +177,7 @@ class Client(App):
             return
         _color = decoded['color'].strip()
         _name = decoded['name'].strip()
-        _plaintext = '{}: {}'.format(_name, decoded['msg'])
+        _plaintext = '{}'.format(decoded['msg'])
         if 'color' in decoded.keys():
             _ = '[b][color={}]{}:[/color][/b] {}'.format(_color, _name, decoded['msg'])
         else:
@@ -197,4 +201,4 @@ class Client(App):
 
 
 if __name__ == "__main__":
-    Client(host_ip='10.10.10.104', host_port=64001, client_nick='Android').run()
+    Client(host_ip='10.10.10.104', client_nick='Android').run()
