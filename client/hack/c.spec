@@ -1,24 +1,20 @@
 [app]
-
-title = sWchat
-package.name = sWchat
+title = lanChat
+package.name = lanChat
 package.domain = org.test
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
-# (str) Application versioning (method 2)
-version.regex = __version__ = ['"](.*)['"]
-version.filename = %(source.dir)s/main.py
+source.include_patterns = assets/*,images/*.png,data/*.png
+# (str) Presplash of the application
+presplash.filename = %(source.dir)sdata/icon.png
+# (str) Icon of the application
+icon.filename = %(source.dir)sdata/icon.png
 
 # first build : requirements=incremental,kivy
 # second build : requirements=incremental,kivy,twisted
 
-requirements = incremental,kivy
+requirements = incremental,kivy,twisted,android
 
-# (str) Presplash of the application
-#presplash.filename = %(source.dir)s/data/presplash.png
-
-# (str) Icon of the application
-#icon.filename = %(source.dir)s/data/icon.png
 
 # (str) Supported orientation (one of landscape, portrait or all)
 orientation = portrait
@@ -26,6 +22,10 @@ orientation = portrait
 #
 # Android specific
 #
+
+# (str) Application versioning (method 2)
+version.regex = __version__ = ['"](.*)['"]
+version.filename = %(source.dir)s/main.py
 
 # (bool) Indicate if the application should be fullscreen or not
 fullscreen = 1
@@ -50,4 +50,5 @@ warn_on_root = 1
 
 # (str) Path to build artifact storage, absolute or relative to spec file
 # build_dir = ./.buildozer
-build_dir = ../build/sWChat
+build_dir = ../build/lanChat
+
