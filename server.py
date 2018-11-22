@@ -1,17 +1,25 @@
-#!/bin/env Python3
+#!/bin/env python3
 from twisted.internet import protocol, reactor, task
 from twisted.internet.protocol import connectionDone
-from twisted.python import log
-
+from zope.interface import provider
+from twisted.logger import ILogObserver, formatEvent, jsonFileLogObserver, Logger, globalLogPublisher
+from functools import partial
 from queue import Queue
-
+from sys import argv
 import json
 import os
 import base64
-
-from functools import partial
-
+import io
 __version__ = "0.1"
+
+
+@provider(ILogObserver)
+def simpleObserver(event):
+    print(formatEvent(event))
+
+
+log = Logger(observer=jsonFileLogObserver(io.open("log.json", "a")), namespace="lanChat")
+globalLogPublisher.addObserver(simpleObserver)
 
 
 def parse_msg0(msg):
@@ -33,7 +41,7 @@ def parse_msg1(msg, server, *args):
         a, *b = msg.split(' ')
         b = msg[len(a)+1:]
     except Exception as e:
-        print(e)
+        log.info(e)
         return
     return a, b
 
@@ -63,7 +71,7 @@ class RelayChannel(object):
                        'join': self.__add_user}[_job]
                 foo(*todo[1:])
             except KeyError as e:
-                print("FOO UNKNOWN.. send upstream?")
+                log.info("FOO UNKNOWN.. send upstream?")
                 self.upstream.put(todo)
                 pass
             except Exception as e:
@@ -76,7 +84,7 @@ class RelayChannel(object):
             for user in self.users:
                 self.users[user]['transport'].write(self.__user_list())  # update user list
             return True
-        print('{} already in list')
+        log.info('{} already in list')
         return False
 
     def __broadcast(self, name, transport, msg):
@@ -88,7 +96,7 @@ class RelayChannel(object):
                     self.__add_user(name, transport, color=_color)
                     return True
                 except AssertionError:
-                    print('*upstream Q')
+                    log.info('*upstream Q')
                     self.upstream.put(('join', name, transport, _joining, _color))
                     return True
             _bits = Base64RelayChat._error_msg('JOIN CHANNEL before posting')
@@ -104,7 +112,7 @@ class RelayChannel(object):
             try:
                 self.q.put((a, name, transport, b))
             except Exception as e:
-                print(e)
+                log.info(e)
                 return False
             return True
         broadcast = Base64RelayChat.encode64(
@@ -113,7 +121,7 @@ class RelayChannel(object):
             try:
                 self.users[u]['transport'].write(broadcast)
             except Exception as e:
-                print('error sending msg to user: ', u)
+                log.info('error sending msg to user: ', u)
         return True
 
 
@@ -155,7 +163,7 @@ class Base64RelayChat(protocol.Protocol):
             try:
                 self.bypass[_job](*todo[1:])
             except KeyError as e:
-                print("UNKNOWN foo")
+                log.info("UNKNOWN foo")
             except Exception as e:
                 raise e
 
@@ -171,11 +179,11 @@ class Base64RelayChat(protocol.Protocol):
             _name = _obj['name'].strip()
             _msg = _obj['msg']
         except KeyError as e:
-            print("missing name &/or msg")
+            log.info("missing name &/or msg")
             return
         except Exception as e:
-            print("EXCEPTION")
-            print(e)  # cannot decode?
+            log.info("EXCEPTION")
+            log.info(e)  # cannot decode?
             return
         try:
             _space = _obj['space']
@@ -187,8 +195,8 @@ class Base64RelayChat(protocol.Protocol):
         try:
             self.channel_list[_space].q.put(('say', _name, self.transport, _msg))
         except Exception as e:
-            print("EXCEPTION")
-            print(e)
+            log.info("EXCEPTION")
+            log.info(e)
 
     def connectionLost(self, reason=connectionDone):
         _lost = []
@@ -198,15 +206,15 @@ class Base64RelayChat(protocol.Protocol):
                     _tp = self.channel_list[chan].users[_name]['transport']
                     if _tp.disconnected and _name not in _lost:
                         _lost.append(_name)  # queue 1 time only
-                        print("{} lost connection".format(_name))
+                        log.info("{} lost connection".format(_name))
                         self.q.put(('PART', _name, _tp, chan))
-        print('cleaned up {}'.format(_lost))
+        log.info('cleaned up {}'.format(_lost))
 
     def user_code(self, name, transport, B64text):
-        print("USER [{}] ENTERED CODE".format(name))
+        log.info("USER [{}] ENTERED CODE".format(name))
         try:
             ufo = json.loads(self.decode64(B64text))
-            print("{} sent {}".format(name, type(ufo)))
+            log.info("{} sent {}".format(name, type(ufo)))
             space = ufo['space']
             msg = ufo['msg']
             if '_cmd_' in space.lower():
@@ -215,10 +223,10 @@ class Base64RelayChat(protocol.Protocol):
             if space in self.bypass.keys():
                 self.bypass[space](name, transport, msg)
                 return True
-            print("??? ", ufo)
+            log.info("??? ", ufo)
         except Exception as e:
-            print("EXCEPTION")
-            print(e)
+            log.info("EXCEPTION")
+            log.info(e)
         return False
 
     def user_join(self, name, transport, chan, color=None):
@@ -226,7 +234,7 @@ class Base64RelayChat(protocol.Protocol):
             # reserved for internal use
             err = "One Does Not Simply Walk into {}".format(chan)
             transport.write(self._error_msg(err))
-            print(err)
+            log.info(err)
             return False
 
         if chan not in self.channel_list.keys():
@@ -237,16 +245,16 @@ class Base64RelayChat(protocol.Protocol):
             transport.write(self._error_msg('_ERROR.001'))   # name is taken
             return False
 
-        print("{} JOINS {}".format(name, chan))
+        log.info("{} JOINS {}".format(name, chan))
         self.user_list[name] = {'channels': [chan], 'color': color}
         self.channel_list[chan].q.put(('join', name, transport, self.user_list[name]['color']))
         return True
 
     def user_part(self, name, transport, chan):
-        print("{} parts {}".format(name, chan))
+        log.info("{} parts {}".format(name, chan))
         if (name in self.channel_list[chan].users.keys()) and \
                 (self.channel_list[chan].users[name]['transport'] != transport):
-            print("DUPLICATE {} QUIT".format(name))
+            log.info("DUPLICATE {} QUIT".format(name))
             return False
         del self.channel_list[chan].users[name]  # remove user from channel
         del self.user_list[name]['channels'][self.user_list[name]['channels'].index(chan)]  # remove channel from user
@@ -263,7 +271,7 @@ class Base64RelayChat(protocol.Protocol):
             for c in self.user_list[name]['channels']:
                 self.user_part(name, transport, c)
         except KeyError as e:
-            print(e)
+            log.info(e)
 
     def __user_cmd(self, name, transport, msg):
         name = name.strip()
@@ -293,7 +301,7 @@ class Base64RelayChat(protocol.Protocol):
 
     def __partial(self, name, transport, cmds):
         for f in cmds:
-            print(f)
+            log.info(f)
             f()
 
     def __enc_user_list(self, chan):
@@ -319,22 +327,18 @@ class Base64RelayChatFactory(protocol.Factory):
 
 
 if __name__ == "__main__":
-    import argparse
-    import sys
-
-    log.startLogging(sys.stdout)
     _factory = Base64RelayChatFactory()
-    parser = argparse.ArgumentParser()
-    parser.add_argument("PORT")
-    args = parser.parse_args()
-    _port = int(args.PORT)
-
-    print('[simple.object.relay.Protocol.{}]'.format(__version__))
-    print('[process ID : {}]\n[listening on port {}]\n'.format(os.getpid(), _port))
+    _port = int(argv[1])
+    x = "[simple.object.relay.Protocol.{}]".format(__version__)
+    y = "[process ID : {}]\n[listening on port {}]\n".format(os.getpid(), _port)
+    log.info(x)
+    print(x)
+    log.info(y)
+    print(y)
     try:
         reactor.listenTCP(_port, _factory)
         reactor.run()
-        print('[exit]')
+        log.info("[exit]")
         exit(0)
     except Exception as e:
         raise e
