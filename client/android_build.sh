@@ -3,7 +3,7 @@
 echo "creating ICON/SPLASH hack"
 cp -r data .data
 
-pip3 install --upgrade pip;pip3 install Cython==0.25.2;pip3 install -r requirements.txt
+pip3 install --upgrade pip;pip3 install Cython==0.25.2;pip3 install -r requirements.txt --user
 echo ""
 echo "BUILDING APK..."
 echo ""
