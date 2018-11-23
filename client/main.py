@@ -1,10 +1,12 @@
 #!/bin/env python
+from platform import python_version
 from kivy.app import App
 from kivy.uix.textinput import TextInput
 from kivy.support import install_twisted_reactor
 from kivy.properties import StringProperty
 from kivy.uix.button import Button
 from kivy.clock import Clock
+from kivy.utils import platform
 install_twisted_reactor()
 
 from twisted.internet import reactor, protocol
@@ -13,6 +15,12 @@ import json
 import base64
 
 from random import choice
+
+if platform == 'android':
+    if int(python_version()[0]) < 3:
+        from _droid import *
+    else:
+        from ._droid import *
 
 colors = ['E4572E', '17BEBB', 'FFC914', '76B041', 'C6C4C4', 'C0392B', '8E44AD', '7F8C8D']
 GREETINGS = 'TWFuIGlzIGRpc3Rpbmd1aXNoZWQsIG5vdCBvbmx5IGJ5IGhpcyBy' \
@@ -23,8 +31,7 @@ GREETINGS = 'TWFuIGlzIGRpc3Rpbmd1aXNoZWQsIG5vdCBvbmx5IGJ5IGhpcyBy' \
             'GdlbmVyYXRpb24gb2Yga25vd2xlZGdlLCBleGNlZWRzIHRoZSBz' \
             'aG9ydCB2ZWhlbWVuY2Ugb2YgYW55IGNhcm5hbCBwbGVhc3VyZS4='
 
-
-__version__ = "0.1.0"
+__version__ = "0.2.1"
 
 
 class ChatMessage(Button):
@@ -87,6 +94,8 @@ class Client(App):
 
     def __init__(self, **kwargs):
         super(Client, self).__init__()
+        if file_uri is not None:
+            print('started with INTENT')
         self.chat_ip = kwargs.get('host_ip')
         self.nick = kwargs.get('client_nick')
         Clock.schedule_once(self.connect, 0)
@@ -101,9 +110,11 @@ class Client(App):
         self.nick = self.root.ids.nick_name.kv_text  # only redundant on 1st run
         try:
             port = int(chat_port)
-        except:
+            assert port > 0
+        except Exception as e:
+            print(e)
             return
-        reactor.connectTCP(host, int(chat_port), ChatClientFactory(self))
+        reactor.connectTCP(host, port, ChatClientFactory(self))
 
     def disconnect(self, *args):
         print('disconnected')
@@ -123,6 +134,7 @@ class Client(App):
 
     def on_connect(self, transport):
         print("CONNECTED")
+        self.vibrate()
         self.transport = transport
         self.root.current = 'lobby'
 
@@ -199,6 +211,13 @@ class Client(App):
     def decode64(b64_text):
         return base64.b64decode(b64_text).decode()
 
+    def vibrate(self):
+        print('vibrate')
+        if platform != 'android':
+            return
+        vibrate()
+
 
 if __name__ == "__main__":
-    Client(host_ip='10.10.10.104', client_nick='Android').run()
+    file_uri = None
+    Client(host_ip='10.10.10.104', client_nick='Android', file_uri=file_uri).run()
