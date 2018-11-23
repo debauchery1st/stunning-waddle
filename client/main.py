@@ -220,4 +220,5 @@ class Client(App):
 
 if __name__ == "__main__":
     file_uri = None
-    Client(host_ip='10.10.10.104', client_nick='Android', file_uri=file_uri).run()
+    nick = str(platform)
+    Client(host_ip='10.10.10.104', client_nick=nick, file_uri=file_uri).run()
