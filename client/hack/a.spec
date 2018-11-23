@@ -1,6 +1,6 @@
 [app]
-title = lanChat
-package.name = lanChat
+title = LanCat
+package.name = LanCat
 package.domain = org.test
 source.dir = .
 
@@ -58,5 +58,5 @@ warn_on_root = 1
 
 # (str) Path to build artifact storage, absolute or relative to spec file
 # build_dir = ./.buildozer
-build_dir = ../build/lanChat
+build_dir = ../build/LanCat
 

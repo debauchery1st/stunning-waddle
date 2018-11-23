@@ -88,13 +88,9 @@ ScreenManager:
             orientation: 'vertical'
             id: chat_window
             Button:
-                text: 'Disconnect'
-                size_hint_y: .1
+                text: 'Detach'
+                size_hint: .24, .1
                 on_press: app.disconnect()
-            Label:
-                markup: 1
-                text: '[b]Lan Chat[/b]'
-                size_hint_y: .1
             BoxLayout:
                 id: local_input
                 orientation: 'horizontal'
@@ -103,10 +99,12 @@ ScreenManager:
                     id: message
                     multiline: False
                     text: "type message here"
+                    size_hint_x: .7
                 Button:
                     text: 'send'
                     on_press: app.send_msg()
                     focus_next: message
+                    size_hint_x: .3
             BoxLayout:
                 orientation: 'horizontal'
                 size_hint_y: 1

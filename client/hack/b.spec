@@ -1,8 +1,9 @@
 [app]
-title = lanChat
-package.name = lanChat
+title = LanCat
+package.name = LanCat
 package.domain = org.test
 source.dir = .
+
 source.include_exts = py,png,jpg,kv,atlas
 source.include_patterns = assets/*,images/*.png,data/*.png
 # (str) Presplash of the application
@@ -56,4 +57,4 @@ warn_on_root = 1
 
 # (str) Path to build artifact storage, absolute or relative to spec file
 # build_dir = ./.buildozer
-build_dir = ../build/lanChat
+build_dir = ../build/LanCat
