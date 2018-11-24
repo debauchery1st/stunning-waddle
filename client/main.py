@@ -100,7 +100,7 @@ class Client(App):
         self.nick = kwargs.get('client_nick')
         Clock.schedule_once(self.connect, 0)
 
-    def refocus_input(self, dt):
+    def refocus_input(self, delta):
         # called from ChatInput(TextInput)
         self.root.ids.message.focus = True
 

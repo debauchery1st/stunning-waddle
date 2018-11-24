@@ -3,7 +3,8 @@
 echo "creating ICON/SPLASH hack"
 cp -r data .data
 
-pip3 install --upgrade pip;pip3 install Cython==0.25.2;pip3 install -r requirements.txt --user
+pip3 install -r requirements.txt --user
+
 echo ""
 echo "BUILDING APK..."
 echo ""
@@ -36,7 +37,7 @@ echo ""
 echo "# example client
 a work in progress
 
-####android build environment
+android build environment
 " > README.md
 python3 --version >> README.md
 lsb_release -ds >> README.md
