@@ -1,19 +1,16 @@
 from jnius import autoclass
 print("PYJNIUS LOADED")
-# test for an intent passed to us
+
 PythonActivity = autoclass('org.kivy.android.PythonActivity')
-activity = PythonActivity.mActivity
-intent = activity.getIntent()
-intent_data = intent.getData()
-if intent_data:
-    file_uri = intent_data.toString()
+
+Context = autoclass('android.content.Context')
+Intent = autoclass('android.content.Intent')
+Activity = PythonActivity.mActivity
 
 
-def vibrate():
+def vibrate(n):
     try:
-        intent = autoclass('android.content.Intent')
-        Context = autoclass('android.content.Context')
-        vibrator = activity.getSystemService(Context.VIBRATOR_SERVICE)
-        vibrator.vibrate(234)
+        vibrator = Activity.getSystemService(Context.VIBRATOR_SERVICE)
+        vibrator.vibrate(n)
     except Exception as e:
         print(e)

@@ -134,9 +134,9 @@ class Client(App):
 
     def on_connect(self, transport):
         print("CONNECTED")
-        self.vibrate()
         self.transport = transport
         self.root.current = 'lobby'
+        self.vibrate()
 
     def on_login(self, *args):
         out = json.dumps({'name': self.nick,
@@ -215,7 +215,7 @@ class Client(App):
         print('vibrate')
         if platform != 'android':
             return
-        vibrate()
+        vibrate(234)
 
 
 if __name__ == "__main__":

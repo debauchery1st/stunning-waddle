@@ -2,7 +2,7 @@
 
 *Python3, Buildozer, Kivy*
 
-I used the Official Kivy VM 2.0 as a guide 
+modeled after the Official Kivy VM 2.0
 
 https://kivy.org/#download
 
