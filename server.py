@@ -1,11 +1,13 @@
 #!/bin/env python3
 from twisted.internet import protocol, reactor, task
 from twisted.internet.protocol import connectionDone
-from zope.interface import provider
 from twisted.logger import ILogObserver, formatEvent, jsonFileLogObserver, Logger, globalLogPublisher
+from zope.interface import provider
+
 from functools import partial
 from queue import Queue
 from sys import argv
+
 import json
 import os
 import base64
@@ -55,8 +57,6 @@ class Receivable(object):
             _o = json.loads(base64.b64decode(data).decode())
             for _ in _o.keys():
                 self.__setattr__(_, _o[_])
-        except KeyError as e:
-            pass
         except Exception as e:
             self.data = e
             pass
