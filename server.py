@@ -10,7 +10,7 @@ import json
 import os
 import base64
 import io
-__version__ = "0.1"
+__version__ = "0.1.2"
 
 
 @provider(ILogObserver)
@@ -46,6 +46,22 @@ def parse_msg1(msg, server, *args):
     return a, b
 
 
+class Receivable(object):
+    name, space, msg = '', '', 'lobby'
+
+    def __init__(self, data):
+        self.data = data
+        try:
+            _o = json.loads(base64.b64decode(data).decode())
+            for _ in _o.keys():
+                self.__setattr__(_, _o[_])
+        except KeyError as e:
+            pass
+        except Exception as e:
+            self.data = e
+            pass
+
+
 class RelayChannel(object):
 
     def __init__(self, name=None, creator="", description="", upstream=None):
@@ -67,8 +83,7 @@ class RelayChannel(object):
             todo = self.q.get()
             _job = todo[0]
             try:
-                foo = {'say': self.__broadcast,
-                       'join': self.__add_user}[_job]
+                foo = {'say': self.__broadcast, 'join': self.__add_user}[_job]
                 foo(*todo[1:])
             except KeyError as e:
                 log.info("FOO UNKNOWN.. send upstream?")
@@ -121,7 +136,7 @@ class RelayChannel(object):
             try:
                 self.users[u]['transport'].write(broadcast)
             except Exception as e:
-                log.info('error sending msg to user: ', u)
+                log.error('error sending msg to user: {} '.format(e))
         return True
 
 
@@ -173,29 +188,15 @@ class Base64RelayChat(protocol.Protocol):
         self.transport.write(self.greetings.encode())
 
     def dataReceived(self, data):
-        # expects base64 encoded JSON
-        try:
-            _obj = json.loads(self.decode64(data))
-            _name = _obj['name'].strip()
-            _msg = _obj['msg']
-        except KeyError as e:
-            log.info("missing name &/or msg")
+        self.__imports(Receivable(data))
+
+    def __imports(self, data):
+        if data.space.lower() == '_cmd_' and data.msg.upper().startswith('PART'):
+            self.q.put(('PART', data.name, self.transport, data.msg[4:].strip()))
             return
+        try:
+            self.channel_list[data.space].q.put(('say', data.name, self.transport, data.msg))
         except Exception as e:
-            log.info("EXCEPTION")
-            log.info(e)  # cannot decode?
-            return
-        try:
-            _space = _obj['space']
-        except KeyError as e:
-            _space = 'lobby'
-        if _space.lower() == '_cmd_' and _msg.upper().startswith('PART'):
-            self.q.put(('PART', _name, self.transport, _msg[4:].strip()))
-            return
-        try:
-            self.channel_list[_space].q.put(('say', _name, self.transport, _msg))
-        except Exception as e:
-            log.info("EXCEPTION")
             log.info(e)
 
     def connectionLost(self, reason=connectionDone):
