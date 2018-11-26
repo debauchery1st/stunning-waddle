@@ -47,7 +47,7 @@ def parse_msg1(msg, server, *args):
 
 
 class Receivable(object):
-    name, space, msg = '', '', 'lobby'
+    name, space, msg = '', 'lobby', ''
 
     def __init__(self, data):
         self.data = data
