@@ -52,7 +52,7 @@ class Receivable(object):
         return '\n [b][color={}]{}:[/color][/b] {}\n'.format(self.color, self.name, self.msg)
 
     def plain_text(self):
-        return '\n {}: {}\n'.format(self.color, self.name, self.msg)
+        return self.msg.__str__() if '://' in self.msg else '{}: {}'.format(self.name, self.msg)
 
     def outgoing(self):
         result = dict()
