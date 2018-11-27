@@ -142,28 +142,19 @@ class Client(App):
 
     def connect(self, *args, **kwargs):
         host = self.root.ids.server_ip.kv_text
-        chat_port = self.root.ids.server_port.kv_text
+        chat_port = int(self.root.ids.server_port.kv_text)
         self.nick = self.root.ids.nick_name.kv_text  # only redundant on 1st run
         try:
-            port = int(chat_port)
-            assert port > 0
+            assert chat_port > 0
         except Exception as e:
             print(e)
             return
-        reactor.connectTCP(host, port, ChatClientFactory(self))
+        reactor.connectTCP(host, chat_port, ChatClientFactory(self))
 
     def disconnect(self, *args):
         print('disconnected')
-        if self.transport:
-            self.transport.write(
-                self.encode64(
-                    json.dumps(
-                        {'name': self.nick,
-                         'space': '_cmd_',
-                         'msg': 'PART {}'.format(self.root.current)}
-                    )
-                )
-            )
+        _ = Sendable(name=self.nick, space='_cmd_', msg='PART {}'.format(self.root.current)).outgoing()
+        self.transport.write(_)
         self.root.ids.chat_logs.clear_widgets()  # clear messages
         self.chat_users = ''  # clear user-list
         self.root.current = 'login'  # back to login screen
@@ -218,14 +209,6 @@ class Client(App):
     def on_stop(self):
         self.disconnect()
         return True
-
-    @staticmethod
-    def encode64(plain_text):
-        return base64.b64encode(plain_text.encode())
-
-    @staticmethod
-    def decode64(b64_text):
-        return base64.b64decode(b64_text).decode()
 
     def vibrate(self):
         print('vibrate')
