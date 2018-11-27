@@ -34,6 +34,42 @@ GREETINGS = 'TWFuIGlzIGRpc3Rpbmd1aXNoZWQsIG5vdCBvbmx5IGJ5IGhpcyBy' \
 __version__ = "0.2.1"
 
 
+class Receivable(object):
+    name, space, msg = '', 'lobby', ''  # isolate incoming to lobby by default
+
+    def __init__(self, data):
+        self.color = ''
+        self._incoming = data
+        try:
+            _o = json.loads(base64.b64decode(data).decode())
+            for _ in _o.keys():
+                self.__setattr__(_, _o[_])
+        except Exception as err:
+            self._incoming = err
+            pass
+
+    def mark_up(self):
+        return '\n [b][color={}]{}:[/color][/b] {}\n'.format(self.color, self.name, self.msg)
+
+    def plain_text(self):
+        return '\n {}: {}\n'.format(self.color, self.name, self.msg)
+
+    def outgoing(self):
+        result = dict()
+        exportable = [_ for _ in self.__dict__.keys() if not _.startswith('_')]
+        for k in exportable:
+            result[k] = self.__getattribute__(k)
+        return base64.b64encode(json.dumps(result).encode())
+
+
+class Sendable(Receivable):
+
+    def __init__(self, **kwargs):
+        super(Sendable, self).__init__(None)
+        for _ in kwargs.keys():
+            self.__setattr__(_, kwargs[_])
+
+
 class ChatMessage(Button):
     message = StringProperty()
     plaintext = StringProperty()
@@ -139,62 +175,42 @@ class Client(App):
         self.vibrate()
 
     def on_login(self, *args):
-        out = json.dumps({'name': self.nick,
-                          'space': '_cmd_',
-                          'msg': 'JOIN {};CONFIG COLOR={}'.format(self.root.current, self.color)})
-        self.transport.write(self.encode64(out))
+        _ = Sendable(name=self.nick, space='_cmd_', msg='JOIN {};CONFIG COLOR={}'.format(self.root.current, self.color))
+        self.transport.write(_.outgoing())
 
     def send_msg(self):
-        msg = self.root.ids.message.text
-        out = self.encode64(json.dumps({'name': self.nick,
-                                        'space': self.root.current,
-                                        'msg': '{}'.format(msg)}))
-        self.transport.write(out)
-        chat_msg = ChatMessage(text='[b][{}][/b] : {}\n'.format(self.nick, msg),
-                               plaintext="{}: {}".format(self.nick, msg),
-                               message=msg)
+        _ = Sendable(name=self.nick, space=self.root.current, msg=self.root.ids.message.text)
+        self.transport.write(_.outgoing())
+        chat_msg = ChatMessage(text=_.mark_up(), plaintext=_.plain_text(), message=_.msg)
         self.root.ids.chat_logs.add_widget(chat_msg)
         self.root.ids.message.text = ''
         self.root.ids.chat_view.scroll_to(chat_msg)
 
     def system_msg(self, decoded):
-        if decoded['name'] == '_chat_users':
-            self.chat_users = '\n'.join(['[b][color={}]{}[/color][/b]'.format(_[1], _[0]) for _ in decoded['msg']])
+        if decoded.name == '_chat_users':
+            self.chat_users = '\n'.join(['[b][color={}]{}[/color][/b]'.format(_[1], _[0]) for _ in decoded.msg])
             return True
-        if '_ERROR' in decoded['space']:
-            if '001' in decoded['msg']:
+        if '_ERROR' in decoded.space:
+            if '001' in decoded.msg:
                 print('NICKNAME TAKEN, PLEASE CHOOSE ANOTHER')
                 self.root.current = 'login'  # back to login screen
                 self.transport.loseConnection()
-            elif '002' in decoded['msg']:
+            elif '002' in decoded.msg:
                 print("UNKNOWN CHANNEL, CHECK SETTINGS")
         else:
             print('UNHANDLED MSG FROM SYSTEM', decoded)
         return True
 
     def on_message(self, b64text):
-        try:
-            decoded = json.loads(self.decode64(b64text))
-            if 'PING' in decoded.keys():
-                print('PONG')
-                self.transport.write(self.encode64(
-                    json.dumps(dict(space="_cmd_", PONG=decoded['PING'],
-                                    name=self.nick, msg="PING", chan=self.root.current))))
-                return
-        except Exception as e:
-            print("ERROR DECODING INCOMING MESSAGE")
-            raise e
-        if decoded['name'].startswith('_'):
-            self.system_msg(decoded)  # handle system msg
+        item = Receivable(b64text)
+        if 'PING' in item.__dict__.keys():
+            print('PONG')
+            self.transport.write('PONG')
             return
-        _color = decoded['color'].strip()
-        _name = decoded['name'].strip()
-        _plaintext = '{}'.format(decoded['msg'])
-        if 'color' in decoded.keys():
-            _ = '[b][color={}]{}:[/color][/b] {}'.format(_color, _name, decoded['msg'])
-        else:
-            _ = _plaintext
-        chat_msg = ChatMessage(text='{}\n'.format(_), plaintext=_plaintext, msg=decoded['msg'])
+        if item.name.startswith('_'):
+            self.system_msg(item)  # handle system msg
+            return
+        chat_msg = ChatMessage(text=item.mark_up(), plaintext=item.plain_text(), message=item.msg)
         self.root.ids.chat_logs.add_widget(chat_msg)
         self.root.ids.message.text = ''
         self.root.ids.chat_view.scroll_to(chat_msg)  # auto-scroll

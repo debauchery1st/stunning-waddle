@@ -12,6 +12,7 @@ import json
 import os
 import base64
 import io
+
 __version__ = "0.1.2"
 
 
@@ -49,17 +50,32 @@ def parse_msg1(msg, server, *args):
 
 
 class Receivable(object):
-    name, space, msg = '', 'lobby', ''
+    name, space, msg = '', 'lobby', ''  # isolate incoming to lobby by default
 
     def __init__(self, data):
-        self.data = data
+        self._incoming = data
         try:
             _o = json.loads(base64.b64decode(data).decode())
             for _ in _o.keys():
                 self.__setattr__(_, _o[_])
-        except Exception as e:
-            self.data = e
+        except Exception as err:
+            self._incoming = err
             pass
+
+    def outgoing(self):
+        result = dict()
+        exportable = [_ for _ in self.__dict__.keys() if not _.startswith('_')]
+        for k in exportable:
+            result[k] = self.__getattribute__(k)
+        return base64.b64encode(json.dumps(result).encode())
+
+
+class Sendable(Receivable):
+
+    def __init__(self, **kwargs):
+        super(Sendable, self).__init__(None)
+        for _ in kwargs.keys():
+            self.__setattr__(_, kwargs[_])
 
 
 class RelayChannel(object):
@@ -75,8 +91,8 @@ class RelayChannel(object):
         task.LoopingCall(self.__check_queue, ()).start(.1)
 
     def __user_list(self):
-        r = map(lambda _: (_, self.users[_]['color']), self.users.keys())
-        return Base64RelayChat.encode64(json.dumps({'name': '_chat_users', 'space': '_cmd_', 'msg': list(r)}))
+        r = list(map(lambda _: (_, self.users[_]['color']), self.users.keys()))
+        return Sendable(name='_chat_users', space='_cmd_', msg=r).outgoing()
 
     def __check_queue(self, *args, **kwargs):
         while not self.q.empty():
@@ -85,12 +101,12 @@ class RelayChannel(object):
             try:
                 foo = {'say': self.__broadcast, 'join': self.__add_user}[_job]
                 foo(*todo[1:])
-            except KeyError as e:
+            except KeyError:
                 log.info("FOO UNKNOWN.. send upstream?")
                 self.upstream.put(todo)
                 pass
-            except Exception as e:
-                raise e
+            except Exception as err:
+                raise err
         # CHANNEL TRAFFIC
 
     def __add_user(self, name, transport, color=''):
@@ -126,17 +142,16 @@ class RelayChannel(object):
             a, b = parse_msg1(msg[3:], self)
             try:
                 self.q.put((a, name, transport, b))
-            except Exception as e:
-                log.info(e)
+            except Exception as err:
+                log.info(err)
                 return False
             return True
-        broadcast = Base64RelayChat.encode64(
-            json.dumps(dict(name=name, msg=msg, space=self.name, color=self.users[name]['color'])))
+        broadcast = Sendable(name=name, msg=msg, space=self.name, color=self.users[name]['color']).outgoing()
         for u in [_ for _ in self.users if _ != name]:
             try:
                 self.users[u]['transport'].write(broadcast)
-            except Exception as e:
-                log.error('error sending msg to user: {} '.format(e))
+            except Exception as err:
+                log.error('error sending msg to user: {} '.format(err))
         return True
 
 
@@ -171,33 +186,13 @@ class Base64RelayChat(protocol.Protocol):
         self.channel_list['_cmd_'] = hyperspace
         task.LoopingCall(self.__upstream, ()).start(.1)
 
-    def __upstream(self, *args, **kwargs):
-        while not self.q.empty():
-            todo = self.q.get()
-            _job = todo[0].upper()
-            try:
-                self.bypass[_job](*todo[1:])
-            except KeyError as e:
-                log.info("UNKNOWN foo")
-            except Exception as e:
-                raise e
+    def dataReceived(self, data):
+        self.__imports(Receivable(data))
 
     def makeConnection(self, transport):
         super(Base64RelayChat, self).makeConnection(transport)
         _ = base64.test()
         self.transport.write(self.greetings.encode())
-
-    def dataReceived(self, data):
-        self.__imports(Receivable(data))
-
-    def __imports(self, data):
-        if data.space.lower() == '_cmd_' and data.msg.upper().startswith('PART'):
-            self.q.put(('PART', data.name, self.transport, data.msg[4:].strip()))
-            return
-        try:
-            self.channel_list[data.space].q.put(('say', data.name, self.transport, data.msg))
-        except Exception as e:
-            log.info(e)
 
     def connectionLost(self, reason=connectionDone):
         _lost = []
@@ -212,22 +207,16 @@ class Base64RelayChat(protocol.Protocol):
         log.info('cleaned up {}'.format(_lost))
 
     def user_code(self, name, transport, B64text):
-        log.info("USER [{}] ENTERED CODE".format(name))
-        try:
-            ufo = json.loads(self.decode64(B64text))
-            log.info("{} sent {}".format(name, type(ufo)))
-            space = ufo['space']
-            msg = ufo['msg']
-            if '_cmd_' in space.lower():
-                self.__user_cmd(name, transport, msg)
-                return True
-            if space in self.bypass.keys():
-                self.bypass[space](name, transport, msg)
-                return True
-            log.info("??? ", ufo)
-        except Exception as e:
-            log.info("EXCEPTION")
-            log.info(e)
+        log.info("".format(name))
+        ufo = Receivable(B64text)
+        log.info("USER [{}] ENTERED CODE {}".format(name, type(ufo)))
+        if '_cmd_' in ufo.space.lower():
+            self.__user_cmd(name, transport, ufo.msg)
+            return True
+        if ufo.space in self.bypass.keys():
+            self.bypass[ufo.space](name, transport, ufo.msg)
+            return True
+        log.info("wtf was that ???! {}".format(ufo))
         return False
 
     def user_join(self, name, transport, chan, color=None):
@@ -274,12 +263,36 @@ class Base64RelayChat(protocol.Protocol):
         except KeyError as e:
             log.info(e)
 
+    def __imports(self, data):
+        if data.space.lower() == '_cmd_' and data.msg.upper().startswith('PART'):
+            self.q.put(('PART', data.name, self.transport, data.msg[4:].strip()))
+            return
+        try:
+            self.channel_list[data.space].q.put(('say', data.name, self.transport, data.msg))
+        except Exception as e:
+            log.info(e)
+
+    def __partial(self, name, transport, cmds):
+        for f in cmds:
+            log.info(f)
+            f()
+
+    def __upstream(self, *args, **kwargs):
+        while not self.q.empty():
+            todo = self.q.get()
+            _job = todo[0].upper()
+            try:
+                self.bypass[_job](*todo[1:])
+            except KeyError as e:
+                log.info("UNKNOWN foo")
+            except Exception as e:
+                raise e
+
     def __user_cmd(self, name, transport, msg):
         name = name.strip()
         if msg.upper() == 'QUIT':
             self.user_quit(name, transport)
             return True
-
         if ';' in msg:
             cmd_chain = []
             for request in msg.split(';'):
@@ -288,9 +301,7 @@ class Base64RelayChat(protocol.Protocol):
                     cmd_chain.append(partial(self.bypass[a.upper()], (name, transport, b)))
             self.q.put(('PARTIAL', name, transport, cmd_chain))
             return True
-
         a, b = msg.split(' ')
-
         available = [x for x in self.bypass.keys() if x != '_cmd']  # no recursion at this level
 
         if a.upper() in available:
@@ -300,29 +311,17 @@ class Base64RelayChat(protocol.Protocol):
             self.bypass[a.upper()](name, transport, b)
         return True
 
-    def __partial(self, name, transport, cmds):
-        for f in cmds:
-            log.info(f)
-            f()
-
     def __enc_user_list(self, chan):
-        r = map(lambda _: (_, self.channel_list[chan].users[_]['color']), self.channel_list[chan].users.keys())
-        return self.encode64(json.dumps({'name': '_chat_users', 'space': '_cmd_', 'msg': list(r)}))
-
-    @staticmethod
-    def encode64(plain_text):
-        return base64.b64encode(plain_text.encode())
-
-    @staticmethod
-    def decode64(b64_text):
-        return base64.b64decode(b64_text).decode()
+        r = list(map(lambda _: (_, self.channel_list[chan].users[_]['color']), self.channel_list[chan].users.keys()))
+        return Sendable(name='_chat_users', space='_cmd_', msg=r).outgoing()
 
     @staticmethod
     def _error_msg(txt):
-        return Base64RelayChat.encode64(json.dumps(dict(space='_ERROR', name='_ERROR', msg='{}'.format(txt))))
+        return Sendable(space='_ERROR', name='_ERROR', msg='{}'.format(txt)).outgoing()
 
 
 class Base64RelayChatFactory(protocol.Factory):
+
     def buildProtocol(self, addr):
         return Base64RelayChat()
 
