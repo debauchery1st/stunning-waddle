@@ -130,8 +130,8 @@ class Client(App):
 
     def __init__(self, **kwargs):
         super(Client, self).__init__()
-        if file_uri is not None:
-            print('started with INTENT')
+        # if file_uri is not None:
+        #     print('started with android INTENT')
         self.chat_ip = kwargs.get('host_ip')
         self.nick = kwargs.get('client_nick')
         Clock.schedule_once(self.connect, 0)
@@ -220,4 +220,4 @@ class Client(App):
 if __name__ == "__main__":
     file_uri = None
     nick = str(platform)
-    Client(host_ip='10.10.10.104', client_nick=nick, file_uri=file_uri).run()
+    Client(host_ip='localhost', client_nick=nick, file_uri=file_uri).run()
