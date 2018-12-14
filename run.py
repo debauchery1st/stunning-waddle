@@ -46,11 +46,11 @@ def shutdown(*args):
 def start():
     threads = []
     if os.name in ['posix', 'darwin']:
-        cli = "sh client.sh"
+        cli = "sh _client.sh"
     else:
         cli = ''  # not tested on windows yet.
     server_task = Task(name='ChatServer', target=partial(
-        subprocess.call, ["python3", "server.py", "64007", get_local_ip()]))
+        subprocess.call, ["python3", "_server.py", "64007", get_local_ip()]))
     threads.append(server_task)
     server_task.start()
     sleep(.123)

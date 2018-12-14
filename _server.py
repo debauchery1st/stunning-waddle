@@ -21,7 +21,7 @@ def simpleObserver(event):
     print(formatEvent(event))
 
 
-log = Logger(observer=jsonFileLogObserver(io.open("log.json", "a")), namespace="lanChat")
+log = Logger(observer=jsonFileLogObserver(io.open("log.json", "a")), namespace="ChatServer")
 globalLogPublisher.addObserver(simpleObserver)
 
 

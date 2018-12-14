@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/usr/bin/env python3
 import sys
 import io
 from twisted.logger import (
@@ -13,6 +13,6 @@ if __name__ == "__main__":
         for event in eventsFromJSONLogFile(io.open(f)):
             output(event)
     except IndexError as e:
-        print("EXAMPLE: python view_log.py ./log.json")
+        print("EXAMPLE: view_log.py ./log.json")
     except Exception as e:
         raise e
