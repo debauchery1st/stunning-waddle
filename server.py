@@ -328,7 +328,7 @@ class Base64RelayChatFactory(protocol.Factory):
         super(Base64RelayChatFactory, self).__init__()
         for k in kwargs:
             setattr(self, k, kwargs[k])
-        x = "[simple.object.relay.Protocol.{version}]\n[process ID : {pid}]\n[listening @ {ip}:{port}]\n"
+        x = "[simple.object.relay.Protocol.{version}]\n[processID:{pid}]\n[listening@{ip}:{port}]\n"
         print(x.format(version=__version__, pid=os.getpid(), ip=self.ip, port=self.port))
 
     def buildProtocol(self, addr):
