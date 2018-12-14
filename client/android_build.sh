@@ -41,5 +41,5 @@ android build environment
 " > README.md
 python3 --version >> README.md
 lsb_release -ds >> README.md
-
+echo '![screenshot](screenshot.png)' >> README.md
 # adb logcat *:S python:D
