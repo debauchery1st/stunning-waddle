@@ -1,4 +1,4 @@
-#!/bin/env python
+#!/usr/bin/env python
 from platform import python_version
 from kivy.app import App
 from kivy.uix.textinput import TextInput
@@ -15,6 +15,18 @@ import json
 import base64
 
 from random import choice
+import socket
+
+
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('8.8.8.8', 0))
+    s.setblocking(False)
+    local_ip_address = s.getsockname()[0]
+    s.close()
+    del s
+    return local_ip_address
+
 
 if platform == 'android':
     if int(python_version()[0]) < 3:
@@ -212,12 +224,11 @@ class Client(App):
 
     def vibrate(self):
         print('vibrate')
-        if platform != 'android':
-            return
-        vibrate(234)
+        if platform == 'android':
+            vibrate(234)
 
 
 if __name__ == "__main__":
     file_uri = None
     nick = str(platform)
-    Client(host_ip='localhost', client_nick=nick, file_uri=file_uri).run()
+    Client(host_ip=get_local_ip(), client_nick=nick, file_uri=file_uri).run()

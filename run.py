@@ -1,7 +1,8 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 import signal
 import os
 import subprocess
+import socket
 from threading import Thread, Event
 from functools import partial
 from time import sleep
@@ -17,6 +18,16 @@ class Task(Thread):
         while not self.shutdown_flag.is_set():
             self._target(*self._args, **self._kwargs)
             self.shutdown_flag.set()
+
+
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('8.8.8.8', 0))
+    s.setblocking(False)
+    local_ip_address = s.getsockname()[0]
+    s.close()
+    del s
+    return local_ip_address
 
 
 def shutdown(*args):
@@ -38,7 +49,8 @@ def start():
         cli = "sh client.sh"
     else:
         cli = ''  # not tested on windows yet.
-    server_task = Task(name='ChatServer', target=partial(subprocess.call, ["python3", "server.py", "64007"]))
+    server_task = Task(name='ChatServer', target=partial(
+        subprocess.call, ["python3", "server.py", "64007", get_local_ip()]))
     threads.append(server_task)
     server_task.start()
     sleep(.123)

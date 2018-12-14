@@ -163,7 +163,7 @@ class Base64RelayChat(protocol.Protocol):
     pid = os.getpid()
 
     def __init__(self, *args, **kwargs):
-        super(Base64RelayChat, self).__init__(*args, **kwargs)
+        super(Base64RelayChat, self).__init__()
         self.q = Queue()
         self.channel_list['lobby'].upstream = self.q
         self.bypass = {'JOIN': lambda *x: self.user_join(*x),
@@ -321,20 +321,24 @@ class Base64RelayChat(protocol.Protocol):
 
 
 class Base64RelayChatFactory(protocol.Factory):
+    ip = ''
+    port = 64007
+
+    def __init__(self, **kwargs):
+        super(Base64RelayChatFactory, self).__init__()
+        for k in kwargs:
+            setattr(self, k, kwargs[k])
+        x = "[simple.object.relay.Protocol.{version}]\n[process ID : {pid}]\n[listening @ {ip}:{port}]\n"
+        print(x.format(version=__version__, pid=os.getpid(), ip=self.ip, port=self.port))
 
     def buildProtocol(self, addr):
-        return Base64RelayChat()
+        return Base64RelayChat(ip=self.ip, port=self.port)
 
 
 if __name__ == "__main__":
-    _factory = Base64RelayChatFactory()
+    _ip = 'localhost' if len(argv) < 3 else argv[2]
     _port = int(argv[1])
-    x = "[simple.object.relay.Protocol.{}]".format(__version__)
-    y = "[process ID : {}]\n[listening on port {}]\n".format(os.getpid(), _port)
-    log.info(x)
-    print(x)
-    log.info(y)
-    print(y)
+    _factory = Base64RelayChatFactory(port=_port, ip=_ip)
     try:
         reactor.listenTCP(_port, _factory)
         reactor.run()
