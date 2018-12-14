@@ -47,10 +47,12 @@ def start():
     threads = []
     if os.name in ['posix', 'darwin']:
         cli = "sh _client.sh"
+        _py = "python3"
     else:
-        cli = ''  # not tested on windows yet.
+        cli = '_client.bat'
+        _py = "c:\Python34\python.exe"
     server_task = Task(name='ChatServer', target=partial(
-        subprocess.call, ["python3", "_server.py", "64007", get_local_ip()]))
+        subprocess.call, [_py, "_server.py", "64007", get_local_ip()]))
     threads.append(server_task)
     server_task.start()
     sleep(.123)
@@ -63,7 +65,7 @@ def start():
     client_task.join()
     print("Thread {tid} stopped".format(tid=client_task.ident))
     del client_task
-    os.kill(os.getpid(), sig.SIGINT)
+    os.kill(os.getpid(), signal.SIGINT)
 
 
 if __name__ == "__main__":
