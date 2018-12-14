@@ -13,9 +13,8 @@ from twisted.internet import reactor, protocol
 
 import json
 import base64
-
-from random import choice
 import socket
+from random import choice
 
 
 def get_local_ip():
