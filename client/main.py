@@ -15,6 +15,7 @@ import json
 import base64
 import socket
 from random import choice
+from functools import partial
 
 
 def get_local_ip():
@@ -138,6 +139,7 @@ class Client(App):
     pks = None
     transport = None
     color = None
+    tts = False
 
     def __init__(self, **kwargs):
         super(Client, self).__init__()
@@ -155,6 +157,8 @@ class Client(App):
         host = self.root.ids.server_ip.kv_text
         chat_port = int(self.root.ids.server_port.kv_text)
         self.nick = self.root.ids.nick_name.kv_text  # only redundant on 1st run
+        self.tts = self.root.ids.nick_name.kv_tts
+        print("tts : {val}".format(val=self.tts))
         try:
             assert chat_port > 0
         except Exception as e:
@@ -171,10 +175,11 @@ class Client(App):
         self.root.current = 'login'  # back to login screen
 
     def on_connect(self, transport):
-        print("CONNECTED")
         self.transport = transport
         self.root.current = 'lobby'
         self.vibrate()
+        foo = partial(self.speak, text='o k', chop=False)
+        Clock.schedule_once(foo, .345)
 
     def on_login(self, *args):
         _ = Sendable(name=self.nick, space='_cmd_', msg='JOIN {};CONFIG COLOR={}'.format(self.root.current, self.color))
@@ -212,10 +217,24 @@ class Client(App):
         if item.name.startswith('_'):
             self.system_msg(item)  # handle system msg
             return
+        if self.tts:
+            foo = partial(self.speak, text=item.plain_text())
+            Clock.schedule_once(foo, .345)
         chat_msg = ChatMessage(text=item.mark_up(), plaintext=item.plain_text(), message=item.msg)
         self.root.ids.chat_logs.add_widget(chat_msg)
         self.root.ids.message.text = ''
         self.root.ids.chat_view.scroll_to(chat_msg)  # auto-scroll
+
+    def speak(self, dt, text='', chop=True):
+        if chop:
+            text = text[len(text.split(':')[0]):]
+        try:
+            foo = partial(speak, text=text)
+            Clock.schedule_once(foo, .123)
+            # speak(text)
+        except NameError:
+            # the speak function is undefined
+            pass
 
     def on_stop(self):
         self.disconnect()
